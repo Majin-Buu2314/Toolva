@@ -1,45 +1,92 @@
-import React, { useState } from 'react';
-import { User, Code, Briefcase, Palette, PenTool, Camera, Brain } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Code, Briefcase, Palette, PenTool, Camera, Brain, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { aiTools } from '../data/aiTools';
+import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 
-const personas = [
-  {
-    id: 'developer',
-    name: 'Developer',
-    icon: Code,
-    categories: ['Code', 'APIs', 'DevOps']
-  },
-  {
-    id: 'designer',
-    name: 'Designer',
-    icon: Palette,
-    categories: ['Design', 'Image Generation']
-  },
-  {
-    id: 'writer',
-    name: 'Content Creator',
-    icon: PenTool,
-    categories: ['Writing', 'Content Creation']
-  },
-  {
-    id: 'business',
-    name: 'Business Owner',
-    icon: Briefcase,
-    categories: ['Business', 'Marketing', 'Analytics']
-  }
-];
+interface Persona {
+  id: string;
+  name: string;
+  icon: any;
+  description: string;
+  skills: string[];
+  tools: string[];
+  workflows: string[];
+}
 
 const PersonaRecommendations = () => {
-  const [selectedPersona, setSelectedPersona] = useState('');
-  
-  const getRecommendedTools = () => {
-    if (!selectedPersona) return [];
-    const persona = personas.find(p => p.id === selectedPersona);
-    return aiTools.filter(tool => 
-      persona?.categories.includes(tool.category)
-    ).slice(0, 6);
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [selectedPersona, setSelectedPersona] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchPersonas();
+  }, []);
+
+  useEffect(() => {
+    if (selectedPersona) {
+      fetchRecommendations(selectedPersona);
+    }
+  }, [selectedPersona]);
+
+  const fetchPersonas = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('personas')
+        .select('*');
+
+      if (error) throw error;
+
+      const mappedPersonas = data.map(p => ({
+        ...p,
+        icon: getIconComponent(p.icon_name)
+      }));
+
+      setPersonas(mappedPersonas);
+    } catch (error) {
+      console.error('Error fetching personas:', error);
+      toast.error('Failed to load personas');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const fetchRecommendations = async (personaId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('recommendations')
+        .select('*')
+        .eq('persona_id', personaId);
+
+      if (error) throw error;
+      setRecommendations(data);
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+      toast.error('Failed to load recommendations');
+    }
+  };
+
+  const getIconComponent = (iconName: string) => {
+    const icons = {
+      'developer': Code,
+      'designer': Palette,
+      'writer': PenTool,
+      'business': Briefcase,
+      'security': Shield,
+      'ai': Brain,
+      'default': User
+    };
+    return icons[iconName] || icons.default;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -48,11 +95,11 @@ const PersonaRecommendations = () => {
           Find Your Perfect AI Stack
         </h2>
         <p className="text-gray-600 dark:text-gray-400">
-          Get personalized tool recommendations based on your role
+          Get personalized tool recommendations based on your role and needs
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
         {personas.map((persona) => {
           const Icon = persona.icon;
           return (
@@ -67,55 +114,71 @@ const PersonaRecommendations = () => {
                   : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
-              <Icon className="w-8 h-8 mx-auto mb-3" />
-              <h3 className="font-semibold">{persona.name}</h3>
+              <Icon className="w-12 h-12 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">{persona.name}</h3>
+              <p className="text-sm opacity-80">{persona.description}</p>
             </motion.button>
           );
         })}
       </div>
 
       {selectedPersona && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {getRecommendedTools().map((tool, index) => (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-8"
+        >
+          {recommendations.map((rec, index) => (
             <motion.div
-              key={tool.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+              key={rec.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
               className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {tool.name}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {tool.category}
-                  </p>
-                </div>
-                <div className="flex items-center bg-blue-100 dark:bg-blue-900/20 px-2 py-1 rounded-full">
-                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                    {tool.rating}
-                  </span>
-                  <Star className="w-4 h-4 text-blue-600 dark:text-blue-400 ml-1" />
-                </div>
-              </div>
-              
-              <p className="text-gray-600 dark:text-gray-300 mb-4 line-clamp-2">
-                {tool.description}
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                {rec.title}
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                {rec.description}
               </p>
-
-              <a
-                href={tool.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full text-center py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Try Now
-              </a>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {rec.tools.map((tool: any) => (
+                  <div
+                    key={tool.id}
+                    className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4"
+                  >
+                    <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                      {tool.name}
+                    </h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {tool.description}
+                    </p>
+                    <a
+                      href={tool.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-4 inline-flex items-center text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      Learn More
+                      <svg
+                        className="w-4 h-4 ml-1"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                      </svg>
+                    </a>
+                  </div>
+                ))}
+              </div>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
     </div>
   );
